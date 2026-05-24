@@ -7,6 +7,17 @@ function getCurrentYearMonth() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
+function getPreviousYearMonth() {
+  const now = new Date();
+  const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  return `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function formatMonthLabel(ym: string) {
+  const [y, m] = ym.split("-");
+  return `${y}年${Number(m)}月`;
+}
+
 function ProgressBar({ value, max, color = "bg-blue-500" }: { value: number; max: number; color?: string }) {
   const pct = max > 0 ? Math.min((value / max) * 100, 100) : 0;
   const over = max > 0 && value > max;
@@ -22,9 +33,10 @@ function ProgressBar({ value, max, color = "bg-blue-500" }: { value: number; max
 
 export default async function DashboardPage() {
   const yearMonth = getCurrentYearMonth();
+  const prevMonth = getPreviousYearMonth();
   const supabase = createServerClient();
 
-  const [settingsRes, expensesRes, savingsRes, categoriesRes, budgetsRes] = await Promise.all([
+  const [settingsRes, expensesRes, savingsRes, categoriesRes, budgetsRes, prevSettingsRes, prevClosingRes] = await Promise.all([
     supabase.from("monthly_settings").select("*").eq("year_month", yearMonth).maybeSingle(),
     supabase.from("expenses").select("amount, category:categories(id, name, is_leisure)")
       .gte("date", `${yearMonth}-01`).lte("date", `${yearMonth}-31`),
@@ -32,9 +44,12 @@ export default async function DashboardPage() {
       .order("year_month", { ascending: false }).limit(1).maybeSingle(),
     supabase.from("categories").select("*").eq("is_leisure", false),
     supabase.from("category_budgets").select("*"),
+    supabase.from("monthly_settings").select("id").eq("year_month", prevMonth).maybeSingle(),
+    supabase.from("savings_history").select("id").eq("year_month", prevMonth).maybeSingle(),
   ]);
 
   const settings = settingsRes.data;
+  const prevMonthUnclosed = !!prevSettingsRes.data && !prevClosingRes.data;
   const expenses = expensesRes.data ?? [];
   const budgets = budgetsRes.data ?? [];
   const normalCategories = categoriesRes.data ?? [];
@@ -102,6 +117,12 @@ export default async function DashboardPage() {
           <div className="mt-3 bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-700">
             今月の設定がまだです。
             <Link href="/settings" className="ml-1 underline font-semibold">設定する →</Link>
+          </div>
+        )}
+        {prevMonthUnclosed && (
+          <div className="mt-3 bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700">
+            {formatMonthLabel(prevMonth)}の月末締めが完了していません。
+            <Link href="/settings" className="ml-1 underline font-semibold">締めを実行する →</Link>
           </div>
         )}
       </div>

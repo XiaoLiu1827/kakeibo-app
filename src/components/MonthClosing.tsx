@@ -4,14 +4,10 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
-function getRecentMonths(n = 6): string[] {
-  const months: string[] = [];
+function getPreviousYearMonth(): string {
   const now = new Date();
-  for (let i = 0; i < n; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
-  }
-  return months;
+  const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  return `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, "0")}`;
 }
 
 function formatMonthLabel(ym: string) {
@@ -31,25 +27,23 @@ type ClosingData = {
 
 export default function MonthClosing() {
   const router = useRouter();
-  const months = getRecentMonths(6);
-  const [selectedMonth, setSelectedMonth] = useState(months[0]!);
+  const prevMonth = getPreviousYearMonth();
   const [data, setData] = useState<ClosingData | null>(null);
-  const [loadingData, setLoadingData] = useState(false);
+  const [loadingData, setLoadingData] = useState(true);
   const [preview, setPreview] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const fetchData = useCallback(async (ym: string) => {
+  const fetchData = useCallback(async () => {
     setLoadingData(true);
-    setPreview(false);
     const supabase = createClient();
 
     const [settingsRes, expensesRes, closingRes, prevSavingsRes] = await Promise.all([
-      supabase.from("monthly_settings").select("income, savings_target").eq("year_month", ym).maybeSingle(),
-      supabase.from("expenses").select("amount").gte("date", `${ym}-01`).lte("date", `${ym}-31`),
-      supabase.from("savings_history").select("id").eq("year_month", ym).maybeSingle(),
+      supabase.from("monthly_settings").select("income, savings_target").eq("year_month", prevMonth).maybeSingle(),
+      supabase.from("expenses").select("amount").gte("date", `${prevMonth}-01`).lte("date", `${prevMonth}-31`),
+      supabase.from("savings_history").select("id").eq("year_month", prevMonth).maybeSingle(),
       supabase.from("savings_history")
         .select("basic_balance, special_balance")
-        .lt("year_month", ym)
+        .lt("year_month", prevMonth)
         .order("year_month", { ascending: false })
         .limit(1)
         .maybeSingle(),
@@ -67,11 +61,9 @@ export default function MonthClosing() {
       hasSettings: !!settingsRes.data,
     });
     setLoadingData(false);
-  }, []);
+  }, [prevMonth]);
 
-  useEffect(() => {
-    fetchData(selectedMonth);
-  }, [selectedMonth, fetchData]);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   async function handleClose() {
     if (!data) return;
@@ -81,7 +73,7 @@ export default function MonthClosing() {
     const basicDelta = data.savingsTarget;
     const specialDelta = surplus - data.savingsTarget;
     await supabase.from("savings_history").upsert({
-      year_month: selectedMonth,
+      year_month: prevMonth,
       surplus,
       basic_delta: basicDelta,
       special_delta: specialDelta,
@@ -93,7 +85,7 @@ export default function MonthClosing() {
     setLoading(false);
     setPreview(false);
     router.refresh();
-    fetchData(selectedMonth);
+    fetchData();
   }
 
   const surplus = data ? data.income - data.totalExpense : 0;
@@ -102,42 +94,38 @@ export default function MonthClosing() {
   const newBasicBalance = (data?.latestBasicBalance ?? 0) + basicDelta;
   const newSpecialBalance = (data?.latestSpecialBalance ?? 0) + specialDelta;
 
-  return (
-    <div className="space-y-4">
-      {/* 月選択 */}
-      <div>
-        <label className="block text-xs font-medium text-gray-500 mb-1">対象月</label>
-        <select
-          value={selectedMonth}
-          onChange={(e) => setSelectedMonth(e.target.value)}
-          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          {months.map((m) => (
-            <option key={m} value={m}>{formatMonthLabel(m)}</option>
-          ))}
-        </select>
-      </div>
+  if (loadingData) {
+    return <div className="text-sm text-gray-400 py-2">読み込み中...</div>;
+  }
 
-      {loadingData ? (
-        <div className="text-sm text-gray-400 py-2">読み込み中...</div>
-      ) : !data?.hasSettings ? (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-700">
-          {formatMonthLabel(selectedMonth)}の月次設定が未入力のため締め処理できません
-        </div>
-      ) : data.alreadyClosed ? (
-        <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-sm text-green-700">
-          ✓ {formatMonthLabel(selectedMonth)}の締め処理は完了しています
-        </div>
-      ) : !preview ? (
+  if (!data?.hasSettings) {
+    return (
+      <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-700">
+        {formatMonthLabel(prevMonth)}の月次設定が未入力のため締め処理できません
+      </div>
+    );
+  }
+
+  if (data.alreadyClosed) {
+    return (
+      <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-sm text-green-700">
+        ✓ {formatMonthLabel(prevMonth)}の締め処理は完了しています
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {!preview ? (
         <button
           onClick={() => setPreview(true)}
           className="w-full py-3 bg-gray-800 text-white font-bold rounded-xl text-sm"
         >
-          {formatMonthLabel(selectedMonth)}の締めを実行
+          {formatMonthLabel(prevMonth)}の締めを実行
         </button>
       ) : (
         <div className="bg-gray-50 rounded-xl p-4 space-y-3">
-          <p className="text-sm font-medium text-gray-700">{formatMonthLabel(selectedMonth)} 締め処理の確認</p>
+          <p className="text-sm font-medium text-gray-700">{formatMonthLabel(prevMonth)} 締め処理の確認</p>
           <div className="space-y-1 text-sm">
             <div className="flex justify-between">
               <span className="text-gray-500">収入</span>
