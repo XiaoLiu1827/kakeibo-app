@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { createServerClient } from "@/lib/supabase/client";
 import SettingsForm from "@/components/SettingsForm";
 import CategoryManager from "@/components/CategoryManager";
+import CategoryBudgetManager from "@/components/CategoryBudgetManager";
 import MonthClosing from "@/components/MonthClosing";
 
 function getCurrentYearMonth() {
@@ -13,36 +14,19 @@ export default async function SettingsPage() {
   const yearMonth = getCurrentYearMonth();
   const supabase = createServerClient();
 
-  const [settingsRes, categoriesRes, expensesRes, savingsRes, closingRes] =
+  const [settingsRes, prevSettingsRes, categoriesRes, budgetsRes, expensesRes, savingsRes, closingRes] =
     await Promise.all([
-      supabase
-        .from("monthly_settings")
-        .select("*")
-        .eq("year_month", yearMonth)
-        .maybeSingle(),
+      supabase.from("monthly_settings").select("*").eq("year_month", yearMonth).maybeSingle(),
+      supabase.from("monthly_settings").select("year_month, savings_target").order("year_month", { ascending: false }).limit(2),
       supabase.from("categories").select("*").order("is_leisure").order("name"),
-      supabase
-        .from("expenses")
-        .select("amount")
-        .gte("date", `${yearMonth}-01`)
-        .lte("date", `${yearMonth}-31`),
-      supabase
-        .from("savings_history")
-        .select("basic_balance, special_balance")
-        .order("year_month", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-      supabase
-        .from("savings_history")
-        .select("id")
-        .eq("year_month", yearMonth)
-        .maybeSingle(),
+      supabase.from("category_budgets").select("*"),
+      supabase.from("expenses").select("amount").gte("date", `${yearMonth}-01`).lte("date", `${yearMonth}-31`),
+      supabase.from("savings_history").select("basic_balance, special_balance").order("year_month", { ascending: false }).limit(1).maybeSingle(),
+      supabase.from("savings_history").select("id").eq("year_month", yearMonth).maybeSingle(),
     ]);
 
-  const totalExpense = (expensesRes.data ?? []).reduce(
-    (sum, e) => sum + e.amount,
-    0
-  );
+  const totalExpense = (expensesRes.data ?? []).reduce((sum, e) => sum + e.amount, 0);
+  const prevSettings = prevSettingsRes.data?.find((s) => s.year_month !== yearMonth);
 
   return (
     <div className="p-4 space-y-6">
@@ -50,7 +34,19 @@ export default async function SettingsPage() {
 
       <div className="bg-white rounded-xl shadow-sm p-4">
         <h2 className="text-sm font-medium text-gray-500 mb-4">今月の設定</h2>
-        <SettingsForm yearMonth={yearMonth} settings={settingsRes.data} />
+        <SettingsForm
+          yearMonth={yearMonth}
+          settings={settingsRes.data}
+          prevSavingsTarget={prevSettings?.savings_target}
+        />
+      </div>
+
+      <div className="bg-white rounded-xl shadow-sm p-4">
+        <h2 className="text-sm font-medium text-gray-500 mb-4">固定費予算</h2>
+        <CategoryBudgetManager
+          categories={categoriesRes.data ?? []}
+          budgets={budgetsRes.data ?? []}
+        />
       </div>
 
       {settingsRes.data && (
@@ -59,6 +55,7 @@ export default async function SettingsPage() {
           <MonthClosing
             yearMonth={yearMonth}
             income={settingsRes.data.income}
+            savingsTarget={settingsRes.data.savings_target}
             totalExpense={totalExpense}
             latestBasicBalance={savingsRes.data?.basic_balance ?? 0}
             latestSpecialBalance={savingsRes.data?.special_balance ?? 0}

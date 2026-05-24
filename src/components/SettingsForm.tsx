@@ -8,14 +8,14 @@ import type { MonthlySettings } from "@/lib/supabase/types";
 type Props = {
   yearMonth: string;
   settings: MonthlySettings | null;
+  prevSavingsTarget?: number;
 };
 
-export default function SettingsForm({ yearMonth, settings }: Props) {
+export default function SettingsForm({ yearMonth, settings, prevSavingsTarget }: Props) {
   const router = useRouter();
+  const defaultTarget = settings?.savings_target ?? prevSavingsTarget ?? 50000;
   const [income, setIncome] = useState(String(settings?.income ?? ""));
-  const [leisureBudget, setLeisureBudget] = useState(
-    String(settings?.leisure_budget ?? "")
-  );
+  const [savingsTarget, setSavingsTarget] = useState(String(defaultTarget));
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -28,14 +28,12 @@ export default function SettingsForm({ yearMonth, settings }: Props) {
     const payload = {
       year_month: yearMonth,
       income: Number(income),
-      leisure_budget: Number(leisureBudget),
+      savings_target: Number(savingsTarget),
+      leisure_budget: 0,
     };
 
     if (settings) {
-      await supabase
-        .from("monthly_settings")
-        .update(payload)
-        .eq("year_month", yearMonth);
+      await supabase.from("monthly_settings").update(payload).eq("year_month", yearMonth);
     } else {
       await supabase.from("monthly_settings").insert(payload);
     }
@@ -66,19 +64,20 @@ export default function SettingsForm({ yearMonth, settings }: Props) {
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          余暇予算
+          今月の貯金目標額
         </label>
         <div className="relative">
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">¥</span>
           <input
             type="number"
             inputMode="numeric"
-            value={leisureBudget}
-            onChange={(e) => setLeisureBudget(e.target.value)}
-            placeholder="例: 30000"
+            value={savingsTarget}
+            onChange={(e) => setSavingsTarget(e.target.value)}
+            placeholder="例: 50000"
             className="w-full pl-8 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
+        <p className="text-xs text-gray-400 mt-1">前月の値を引き継ぎます</p>
       </div>
 
       <button

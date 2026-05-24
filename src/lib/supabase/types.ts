@@ -6,6 +6,14 @@ export type Category = {
   created_at: string
 }
 
+export type CategoryBudget = {
+  id: string
+  category_id: string
+  budget: number
+  updated_at: string
+  category?: Category
+}
+
 export type Expense = {
   id: string
   amount: number
@@ -21,6 +29,7 @@ export type MonthlySettings = {
   year_month: string
   income: number
   leisure_budget: number
+  savings_target: number
   created_at: string
 }
 
@@ -32,5 +41,6 @@ export type SavingsHistory = {
   special_delta: number
   basic_balance: number
   special_balance: number
+  carryover_balance: number
   created_at: string
 }

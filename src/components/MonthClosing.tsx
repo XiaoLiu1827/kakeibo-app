@@ -7,17 +7,17 @@ import { createClient } from "@/lib/supabase/client";
 type Props = {
   yearMonth: string;
   income: number;
+  savingsTarget: number;
   totalExpense: number;
   latestBasicBalance: number;
   latestSpecialBalance: number;
   alreadyClosed: boolean;
 };
 
-const BASE_SAVING = 70000;
-
 export default function MonthClosing({
   yearMonth,
   income,
+  savingsTarget,
   totalExpense,
   latestBasicBalance,
   latestSpecialBalance,
@@ -28,8 +28,8 @@ export default function MonthClosing({
   const [preview, setPreview] = useState(false);
 
   const surplus = income - totalExpense;
-  const basicDelta = BASE_SAVING;
-  const specialDelta = surplus >= BASE_SAVING ? surplus - BASE_SAVING : surplus - BASE_SAVING;
+  const basicDelta = savingsTarget;
+  const specialDelta = surplus - savingsTarget;
   const newBasicBalance = latestBasicBalance + basicDelta;
   const newSpecialBalance = latestSpecialBalance + specialDelta;
 
@@ -43,6 +43,7 @@ export default function MonthClosing({
       special_delta: specialDelta,
       basic_balance: newBasicBalance,
       special_balance: newSpecialBalance,
+      carryover_balance: latestSpecialBalance,
     }, { onConflict: "year_month" });
 
     setLoading(false);
@@ -103,6 +104,9 @@ export default function MonthClosing({
                   ({specialDelta >= 0 ? "+" : ""}¥{specialDelta.toLocaleString()})
                 </span>
               </span>
+            </div>
+            <div className="text-xs text-gray-400 mt-1">
+              ※ 特別枠の内訳: 繰り越し ¥{latestSpecialBalance.toLocaleString()} + 当月 {specialDelta >= 0 ? "+" : ""}¥{specialDelta.toLocaleString()}
             </div>
           </div>
           <div className="flex gap-2 pt-1">
