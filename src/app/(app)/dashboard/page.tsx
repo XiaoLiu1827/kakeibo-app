@@ -18,13 +18,13 @@ function formatMonthLabel(ym: string) {
   return `${y}年${Number(m)}月`;
 }
 
-function ProgressBar({ value, max, color = "bg-blue-500" }: { value: number; max: number; color?: string }) {
+function TwoToneBar({ value, max, color = "bg-blue-500", bgColor = "bg-blue-100" }: { value: number; max: number; color?: string; bgColor?: string }) {
   const pct = max > 0 ? Math.min((value / max) * 100, 100) : 0;
   const over = max > 0 && value > max;
   return (
-    <div className="w-full bg-gray-100 rounded-full h-2">
+    <div className={`w-full ${bgColor} rounded-full h-3 overflow-hidden`}>
       <div
-        className={`h-2 rounded-full transition-all ${over ? "bg-red-500" : color}`}
+        className={`h-3 rounded-full transition-all ${over ? "bg-red-400" : color}`}
         style={{ width: `${pct}%` }}
       />
     </div>
@@ -159,23 +159,16 @@ export default async function DashboardPage() {
             )}
           </div>
 
-          {/* 残高（メイン）: 残りラベルと金額を横並び */}
-          <div className="flex items-baseline justify-between">
+          {/* 残り: 左寄せ横並び */}
+          <div className="flex items-baseline gap-2">
             <p className="text-xs text-gray-400">残り</p>
             <p className={`text-3xl font-bold ${leisureRemaining < 0 ? "text-red-500" : "text-gray-900"}`}>
               ¥{leisureRemaining.toLocaleString()}
             </p>
           </div>
 
-          {/* 2トーンのプログレスバー */}
-          <div className="w-full bg-amber-100 rounded-full h-3 overflow-hidden">
-            <div
-              className={`h-3 rounded-full transition-all ${leisureExpense > leisureTotal ? "bg-red-400" : "bg-amber-400"}`}
-              style={{ width: `${leisureTotal > 0 ? Math.min((leisureExpense / leisureTotal) * 100, 100) : 0}%` }}
-            />
-          </div>
+          <TwoToneBar value={leisureExpense} max={leisureTotal} color="bg-amber-400" bgColor="bg-amber-100" />
 
-          {/* 支出 / 合計 */}
           <div className="flex justify-between text-sm text-gray-500">
             <span>支出 <span className="font-semibold text-gray-700">¥{leisureExpense.toLocaleString()}</span></span>
             <span>合計 <span className="font-medium">¥{leisureTotal.toLocaleString()}</span></span>
@@ -201,21 +194,22 @@ export default async function DashboardPage() {
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">生活費</p>
 
-            <div className="flex items-end justify-between">
-              <div>
-                <p className="text-3xl font-bold text-gray-900">¥{totalFixedExpense.toLocaleString()}</p>
-                <p className="text-xs text-gray-400 mt-0.5">使用額</p>
-              </div>
-              <div className="text-right text-sm text-gray-500">
-                <p className={totalFixedExpense > totalFixedBudget ? "text-red-500 font-semibold" : ""}>
-                  予算 ¥{totalFixedBudget.toLocaleString()}
-                </p>
-              </div>
+            {/* 残り: 左寄せ横並び */}
+            <div className="flex items-baseline gap-2">
+              <p className="text-xs text-gray-400">残り</p>
+              <p className={`text-3xl font-bold ${totalFixedExpense > totalFixedBudget ? "text-red-500" : "text-gray-900"}`}>
+                ¥{(totalFixedBudget - totalFixedExpense).toLocaleString()}
+              </p>
             </div>
 
-            <ProgressBar value={totalFixedExpense} max={totalFixedBudget || totalFixedExpense} color="bg-blue-500" />
+            <TwoToneBar value={totalFixedExpense} max={totalFixedBudget || totalFixedExpense} color="bg-blue-500" bgColor="bg-blue-100" />
 
-            <div className="space-y-2 pt-1">
+            <div className="flex justify-between text-sm text-gray-500">
+              <span>支出 <span className="font-semibold text-gray-700">¥{totalFixedExpense.toLocaleString()}</span></span>
+              <span>予算 <span className="font-medium">¥{totalFixedBudget.toLocaleString()}</span></span>
+            </div>
+
+            <div className="space-y-2 pt-1 border-t border-gray-50">
               {normalCategories
                 .filter((c) => budgetMap[c.id] || fixedExpenseByCategory[c.id])
                 .map((c) => {
@@ -232,7 +226,7 @@ export default async function DashboardPage() {
                           {over && " ⚠"}
                         </span>
                       </div>
-                      {budget > 0 && <ProgressBar value={used} max={budget} color="bg-blue-400" />}
+                      {budget > 0 && <TwoToneBar value={used} max={budget} color="bg-blue-400" bgColor="bg-blue-100" />}
                     </div>
                   );
                 })}
