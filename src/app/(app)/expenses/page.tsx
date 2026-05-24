@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
+export const dynamic = "force-dynamic";
+import { createServerClient } from "@/lib/supabase/client";
 
 function getCurrentYearMonth() {
   const now = new Date();
@@ -8,7 +9,7 @@ function getCurrentYearMonth() {
 
 export default async function ExpensesPage() {
   const yearMonth = getCurrentYearMonth();
-  const supabase = createClient();
+  const supabase = createServerClient();
 
   const { data: expenses } = await supabase
     .from("expenses")

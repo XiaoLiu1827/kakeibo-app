@@ -1,8 +1,8 @@
-import { createClient } from "@/lib/supabase/client";
+import { createServerClient } from "@/lib/supabase/client";
 import ExpenseForm from "@/components/ExpenseForm";
 
 export default async function NewExpensePage() {
-  const supabase = createClient();
+  const supabase = createServerClient();
   const { data: categories } = await supabase
     .from("categories")
     .select("*")

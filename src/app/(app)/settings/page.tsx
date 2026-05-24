@@ -1,4 +1,5 @@
-import { createClient } from "@/lib/supabase/client";
+export const dynamic = "force-dynamic";
+import { createServerClient } from "@/lib/supabase/client";
 import SettingsForm from "@/components/SettingsForm";
 import CategoryManager from "@/components/CategoryManager";
 import MonthClosing from "@/components/MonthClosing";
@@ -10,7 +11,7 @@ function getCurrentYearMonth() {
 
 export default async function SettingsPage() {
   const yearMonth = getCurrentYearMonth();
-  const supabase = createClient();
+  const supabase = createServerClient();
 
   const [settingsRes, categoriesRes, expensesRes, savingsRes, closingRes] =
     await Promise.all([

@@ -1,9 +1,10 @@
-import { createClient } from "@/lib/supabase/client";
+export const dynamic = "force-dynamic";
+import { createServerClient } from "@/lib/supabase/client";
 import SavingsChart from "@/components/SavingsChart";
 import SavingsManualAdd from "@/components/SavingsManualAdd";
 
 export default async function SavingsPage() {
-  const supabase = createClient();
+  const supabase = createServerClient();
   const { data: history } = await supabase
     .from("savings_history")
     .select("*")

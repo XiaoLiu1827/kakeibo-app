@@ -1,11 +1,11 @@
-import { createClient } from "@/lib/supabase/client";
+import { createServerClient } from "@/lib/supabase/client";
 import ExpenseForm from "@/components/ExpenseForm";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 
 export default async function EditExpensePage(props: PageProps<"/expenses/[id]/edit">) {
   const { id } = await props.params;
-  const supabase = createClient();
+  const supabase = createServerClient();
 
   const [expenseRes, categoriesRes] = await Promise.all([
     supabase.from("expenses").select("*").eq("id", id).single(),
