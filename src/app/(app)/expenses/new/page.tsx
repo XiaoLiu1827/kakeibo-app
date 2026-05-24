@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { createServerClient } from "@/lib/supabase/client";
 import ExpenseForm from "@/components/ExpenseForm";
 
