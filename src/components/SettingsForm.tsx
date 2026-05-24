@@ -9,15 +9,18 @@ type Props = {
   yearMonth: string;
   settings: MonthlySettings | null;
   prevSavingsTarget?: number;
+  totalFixedBudget: number;
 };
 
-export default function SettingsForm({ yearMonth, settings, prevSavingsTarget }: Props) {
+export default function SettingsForm({ yearMonth, settings, prevSavingsTarget, totalFixedBudget }: Props) {
   const router = useRouter();
   const defaultTarget = settings?.savings_target ?? prevSavingsTarget ?? 50000;
   const [income, setIncome] = useState(String(settings?.income ?? ""));
   const [savingsTarget, setSavingsTarget] = useState(String(defaultTarget));
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
+
+  const leisureBudget = Number(income || 0) - totalFixedBudget - Number(savingsTarget || 0);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -79,6 +82,29 @@ export default function SettingsForm({ yearMonth, settings, prevSavingsTarget }:
         </div>
         <p className="text-xs text-gray-400 mt-1">前月の値を引き継ぎます</p>
       </div>
+
+      {Number(income) > 0 && (
+        <div className={`rounded-xl p-4 ${leisureBudget >= 0 ? "bg-orange-50" : "bg-red-50"}`}>
+          <p className="text-xs font-medium text-gray-500 mb-1">今月の余暇予算（自動計算）</p>
+          <p className={`text-2xl font-bold ${leisureBudget >= 0 ? "text-orange-600" : "text-red-500"}`}>
+            ¥{leisureBudget.toLocaleString()}
+          </p>
+          <div className="text-xs text-gray-400 mt-2 space-y-0.5">
+            <div className="flex justify-between">
+              <span>手取り収入</span>
+              <span>¥{Number(income).toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>固定費予算合計</span>
+              <span>− ¥{totalFixedBudget.toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>貯金目標額</span>
+              <span>− ¥{Number(savingsTarget).toLocaleString()}</span>
+            </div>
+          </div>
+        </div>
+      )}
 
       <button
         type="submit"

@@ -27,6 +27,7 @@ export default async function SettingsPage() {
 
   const totalExpense = (expensesRes.data ?? []).reduce((sum, e) => sum + e.amount, 0);
   const prevSettings = prevSettingsRes.data?.find((s) => s.year_month !== yearMonth);
+  const totalFixedBudget = (budgetsRes.data ?? []).reduce((sum, b) => sum + b.budget, 0);
 
   return (
     <div className="p-4 space-y-6">
@@ -38,6 +39,7 @@ export default async function SettingsPage() {
           yearMonth={yearMonth}
           settings={settingsRes.data}
           prevSavingsTarget={prevSettings?.savings_target}
+          totalFixedBudget={totalFixedBudget}
         />
       </div>
 
