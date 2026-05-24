@@ -152,6 +152,7 @@ export default async function DashboardPage() {
 
         {/* 余暇予算 */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
+          {/* ヘッダー */}
           <div className="flex items-center justify-between">
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">余暇予算</p>
             {fixedOverspend > 0 && (
@@ -159,20 +160,30 @@ export default async function DashboardPage() {
             )}
           </div>
 
-          <div className="flex items-end justify-between">
-            <div>
-              <p className="text-3xl font-bold text-gray-900">¥{leisureRemaining.toLocaleString()}</p>
-              <p className="text-xs text-gray-400 mt-0.5">残高</p>
-            </div>
-            <div className="text-right text-sm text-gray-500">
-              <p>使用 ¥{leisureExpense.toLocaleString()}</p>
-              <p className="text-xs text-gray-400">合計 ¥{leisureTotal.toLocaleString()}</p>
-            </div>
+          {/* 残高（メイン） */}
+          <div>
+            <p className="text-xs text-gray-400 mb-0.5">残り</p>
+            <p className={`text-3xl font-bold ${leisureRemaining < 0 ? "text-red-500" : "text-gray-900"}`}>
+              ¥{leisureRemaining.toLocaleString()}
+            </p>
           </div>
 
-          <ProgressBar value={leisureExpense} max={leisureTotal} color="bg-amber-400" />
+          {/* 2トーンのプログレスバー（使用=amber、残り=amber-100） */}
+          <div className="w-full bg-amber-100 rounded-full h-3 overflow-hidden">
+            <div
+              className={`h-3 rounded-full transition-all ${leisureExpense > leisureTotal ? "bg-red-400" : "bg-amber-400"}`}
+              style={{ width: `${leisureTotal > 0 ? Math.min((leisureExpense / leisureTotal) * 100, 100) : 0}%` }}
+            />
+          </div>
 
-          <div className="grid grid-cols-2 gap-2 pt-1">
+          {/* 使用 / 合計 */}
+          <div className="flex justify-between text-sm text-gray-500">
+            <span>使用 <span className="font-semibold text-gray-700">¥{leisureExpense.toLocaleString()}</span></span>
+            <span>合計 <span className="font-medium">¥{leisureTotal.toLocaleString()}</span></span>
+          </div>
+
+          {/* 内訳 */}
+          <div className="grid grid-cols-2 gap-2">
             <div className="bg-amber-50 rounded-xl p-3">
               <p className="text-xs text-amber-600 font-medium">今月分</p>
               <p className="text-base font-bold text-amber-700 mt-0.5">¥{leisureBudgetThisMonth.toLocaleString()}</p>
