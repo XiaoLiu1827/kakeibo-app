@@ -40,7 +40,7 @@ export default async function DashboardPage() {
     supabase.from("monthly_settings").select("*").eq("year_month", yearMonth).maybeSingle(),
     supabase.from("expenses").select("amount, category:categories(id, name, is_leisure)")
       .gte("date", `${yearMonth}-01`).lte("date", `${yearMonth}-31`),
-    supabase.from("savings_history").select("basic_balance, special_balance, carryover_balance")
+    supabase.from("savings_history").select("basic_balance, special_balance")
       .order("year_month", { ascending: false }).limit(1).maybeSingle(),
     supabase.from("categories").select("*").eq("is_leisure", false),
     supabase.from("category_budgets").select("*"),
@@ -86,9 +86,8 @@ export default async function DashboardPage() {
 
   const basicBalance = savingsRes.data?.basic_balance ?? 0;
   const specialBalance = savingsRes.data?.special_balance ?? 0;
-  const carryoverBalance = savingsRes.data?.carryover_balance ?? specialBalance;
 
-  const leisureTotal = leisureBudgetThisMonth + carryoverBalance;
+  const leisureTotal = leisureBudgetThisMonth;
   const leisureRemaining = leisureTotal - leisureExpense;
 
   const leisureTop5 = Object.values(leisureByCategory)
@@ -182,17 +181,6 @@ export default async function DashboardPage() {
             <span>合計 <span className="font-medium">¥{leisureTotal.toLocaleString()}</span></span>
           </div>
 
-          {/* 内訳 */}
-          <div className="grid grid-cols-2 gap-2">
-            <div className="bg-amber-50 rounded-xl p-3">
-              <p className="text-xs text-amber-600 font-medium">今月分</p>
-              <p className="text-base font-bold text-amber-700 mt-0.5">¥{leisureBudgetThisMonth.toLocaleString()}</p>
-            </div>
-            <div className="bg-blue-50 rounded-xl p-3">
-              <p className="text-xs text-blue-600 font-medium">繰り越し</p>
-              <p className="text-base font-bold text-blue-700 mt-0.5">¥{carryoverBalance.toLocaleString()}</p>
-            </div>
-          </div>
 
           {leisureTop5.length > 0 && (
             <div className="pt-1 space-y-2 border-t border-gray-50">
@@ -263,7 +251,6 @@ export default async function DashboardPage() {
             <div className="bg-emerald-50 rounded-xl p-3">
               <p className="text-xs text-emerald-500 font-medium">特別枠</p>
               <p className="text-xl font-bold text-emerald-700 mt-1">¥{specialBalance.toLocaleString()}</p>
-              <p className="text-xs text-emerald-400 mt-0.5">繰越 ¥{carryoverBalance.toLocaleString()}</p>
             </div>
           </div>
           <div className="flex justify-between items-center pt-1 border-t border-gray-50">
