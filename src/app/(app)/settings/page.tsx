@@ -44,7 +44,12 @@ export default async function SettingsPage() {
       </div>
 
       <div className="bg-white rounded-xl shadow-sm p-4">
-        <h2 className="text-sm font-medium text-gray-500 mb-4">固定費予算</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-sm font-medium text-gray-500">生活費予算</h2>
+          {totalFixedBudget > 0 && (
+            <span className="text-sm font-bold text-gray-700">合計 ¥{totalFixedBudget.toLocaleString()}</span>
+          )}
+        </div>
         <CategoryBudgetManager
           categories={categoriesRes.data ?? []}
           budgets={budgetsRes.data ?? []}

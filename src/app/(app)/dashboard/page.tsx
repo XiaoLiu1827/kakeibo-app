@@ -7,6 +7,19 @@ function getCurrentYearMonth() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
+function ProgressBar({ value, max, color = "bg-blue-500" }: { value: number; max: number; color?: string }) {
+  const pct = max > 0 ? Math.min((value / max) * 100, 100) : 0;
+  const over = max > 0 && value > max;
+  return (
+    <div className="w-full bg-gray-100 rounded-full h-2">
+      <div
+        className={`h-2 rounded-full transition-all ${over ? "bg-red-500" : color}`}
+        style={{ width: `${pct}%` }}
+      />
+    </div>
+  );
+}
+
 export default async function DashboardPage() {
   const yearMonth = getCurrentYearMonth();
   const supabase = createServerClient();
@@ -24,143 +37,209 @@ export default async function DashboardPage() {
   const settings = settingsRes.data;
   const expenses = expensesRes.data ?? [];
   const budgets = budgetsRes.data ?? [];
+  const normalCategories = categoriesRes.data ?? [];
+
+  type Cat = { id: string; name: string; is_leisure: boolean };
 
   const budgetMap = Object.fromEntries(budgets.map((b) => [b.category_id, b.budget]));
-  const normalCategories = categoriesRes.data ?? [];
   const totalFixedBudget = normalCategories.reduce((sum, c) => sum + (budgetMap[c.id] ?? 0), 0);
 
   const savingsTarget = settings?.savings_target ?? 50000;
   const income = settings?.income ?? 0;
-  const leisureBudgetThisMonth = income - totalFixedBudget - savingsTarget;
+
+  const totalExpense = expenses.reduce((sum, e) => sum + e.amount, 0);
+
+  const fixedExpenseByCategory: Record<string, number> = {};
+  let leisureExpense = 0;
+  const leisureByCategory: Record<string, { name: string; amount: number }> = {};
+
+  for (const e of expenses) {
+    const cat = e.category as unknown as Cat | null;
+    if (!cat) continue;
+    if (cat.is_leisure) {
+      leisureExpense += e.amount;
+      if (!leisureByCategory[cat.id]) leisureByCategory[cat.id] = { name: cat.name, amount: 0 };
+      leisureByCategory[cat.id]!.amount += e.amount;
+    } else {
+      fixedExpenseByCategory[cat.id] = (fixedExpenseByCategory[cat.id] ?? 0) + e.amount;
+    }
+  }
+
+  const totalFixedExpense = Object.values(fixedExpenseByCategory).reduce((s, v) => s + v, 0);
+  const fixedOverspend = Math.max(0, totalFixedExpense - totalFixedBudget);
+  const leisureBudgetThisMonth = income - totalFixedBudget - savingsTarget - fixedOverspend;
 
   const basicBalance = savingsRes.data?.basic_balance ?? 0;
   const specialBalance = savingsRes.data?.special_balance ?? 0;
   const carryoverBalance = savingsRes.data?.carryover_balance ?? specialBalance;
 
-  const totalExpense = expenses.reduce((sum, e) => sum + e.amount, 0);
+  const leisureTotal = leisureBudgetThisMonth + carryoverBalance;
+  const leisureRemaining = leisureTotal - leisureExpense;
 
-  type Cat = { id: string; name: string; is_leisure: boolean };
-  const leisureExpense = expenses
-    .filter((e) => (e.category as unknown as Cat | null)?.is_leisure)
-    .reduce((sum, e) => sum + e.amount, 0);
-
-  const expenseByCategory: Record<string, number> = {};
-  for (const e of expenses) {
-    const cat = e.category as unknown as Cat | null;
-    if (cat && !cat.is_leisure) {
-      expenseByCategory[cat.id] = (expenseByCategory[cat.id] ?? 0) + e.amount;
-    }
-  }
+  const leisureTop5 = Object.values(leisureByCategory)
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, 5);
 
   const now = new Date();
   const monthLabel = `${now.getFullYear()}年${now.getMonth() + 1}月`;
+  const surplus = income - totalExpense;
 
   return (
-    <div className="p-4 space-y-4">
-      <div className="flex items-center justify-between pt-2">
-        <h1 className="text-xl font-bold">{monthLabel}</h1>
-        <Link href="/expenses/new" className="bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-full">
-          ＋ 支出を追加
-        </Link>
-      </div>
+    <div className="bg-slate-50 min-h-screen">
+      {/* ヘッダー */}
+      <div className="bg-white border-b border-gray-100 px-4 pt-6 pb-4">
+        <div className="flex items-center justify-between">
+          <h1 className="text-lg font-bold text-gray-800">{monthLabel}</h1>
+          <Link
+            href="/expenses/new"
+            className="bg-blue-600 text-white text-sm font-semibold px-4 py-2 rounded-full shadow-sm"
+          >
+            ＋ 支出追加
+          </Link>
+        </div>
 
-      {!settings && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-sm text-yellow-800">
-          今月の設定がまだです。
-          <Link href="/settings" className="ml-1 underline font-medium">設定する →</Link>
-        </div>
-      )}
-
-      {/* 余暇予算 */}
-      <div className="bg-white rounded-xl shadow-sm p-4 space-y-3">
-        <h2 className="text-sm font-medium text-gray-500">余暇予算</h2>
-        <div className="flex gap-3">
-          <div className="flex-1 bg-orange-50 rounded-xl p-3">
-            <p className="text-xs text-orange-500 font-medium">今月分</p>
-            <p className="text-lg font-bold text-orange-700">¥{leisureBudgetThisMonth.toLocaleString()}</p>
-          </div>
-          <div className="flex-1 bg-yellow-50 rounded-xl p-3">
-            <p className="text-xs text-yellow-600 font-medium">繰り越し</p>
-            <p className="text-lg font-bold text-yellow-700">¥{carryoverBalance.toLocaleString()}</p>
-          </div>
-        </div>
-        <div className="flex items-end justify-between">
-          <div>
-            <p className="text-2xl font-bold">
-              ¥{(leisureBudgetThisMonth + carryoverBalance - leisureExpense).toLocaleString()}
-            </p>
-            <p className="text-xs text-gray-400 mt-0.5">残り（使用 ¥{leisureExpense.toLocaleString()}）</p>
-          </div>
-          <p className="text-sm text-gray-400">
-            合計 ¥{(leisureBudgetThisMonth + carryoverBalance).toLocaleString()}
-          </p>
-        </div>
-        {leisureBudgetThisMonth + carryoverBalance > 0 && (
-          <div className="w-full bg-gray-100 rounded-full h-2">
-            <div
-              className={`h-2 rounded-full transition-all ${leisureExpense > leisureBudgetThisMonth + carryoverBalance ? "bg-red-500" : "bg-orange-400"}`}
-              style={{ width: `${Math.min((leisureExpense / (leisureBudgetThisMonth + carryoverBalance)) * 100, 100)}%` }}
-            />
+        {!settings && (
+          <div className="mt-3 bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-700">
+            今月の設定がまだです。
+            <Link href="/settings" className="ml-1 underline font-semibold">設定する →</Link>
           </div>
         )}
       </div>
 
-      {/* 固定費カテゴリ別 */}
-      {normalCategories.length > 0 && totalFixedBudget > 0 && (
-        <div className="bg-white rounded-xl shadow-sm p-4 space-y-3">
-          <h2 className="text-sm font-medium text-gray-500">固定費</h2>
-          {normalCategories
-            .filter((c) => budgetMap[c.id])
-            .map((c) => {
-              const budget = budgetMap[c.id] ?? 0;
-              const used = expenseByCategory[c.id] ?? 0;
-              const pct = budget > 0 ? Math.min((used / budget) * 100, 100) : 0;
-              return (
-                <div key={c.id} className="space-y-1">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-700">{c.name}</span>
-                    <span className={used > budget ? "text-red-500 font-medium" : "text-gray-500"}>
-                      ¥{used.toLocaleString()} / ¥{budget.toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="w-full bg-gray-100 rounded-full h-1.5">
-                    <div
-                      className={`h-1.5 rounded-full ${used > budget ? "bg-red-400" : "bg-blue-400"}`}
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
+      <div className="px-4 py-4 space-y-3">
+
+        {/* 収支サマリー */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">今月の収支</p>
+          <div className="grid grid-cols-3 divide-x divide-gray-100">
+            <div className="pr-4">
+              <p className="text-xs text-gray-400 mb-1">収入</p>
+              <p className="text-base font-bold text-gray-800">¥{income.toLocaleString()}</p>
+            </div>
+            <div className="px-4">
+              <p className="text-xs text-gray-400 mb-1">支出</p>
+              <p className="text-base font-bold text-gray-800">¥{totalExpense.toLocaleString()}</p>
+            </div>
+            <div className="pl-4">
+              <p className="text-xs text-gray-400 mb-1">収支</p>
+              <p className={`text-base font-bold ${surplus >= 0 ? "text-blue-600" : "text-red-500"}`}>
+                {surplus >= 0 ? "+" : ""}¥{surplus.toLocaleString()}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* 余暇予算 */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">余暇予算</p>
+            {fixedOverspend > 0 && (
+              <span className="text-xs text-red-500 font-medium">生活費超過 −¥{fixedOverspend.toLocaleString()}</span>
+            )}
+          </div>
+
+          <div className="flex items-end justify-between">
+            <div>
+              <p className="text-3xl font-bold text-gray-900">¥{leisureRemaining.toLocaleString()}</p>
+              <p className="text-xs text-gray-400 mt-0.5">残高</p>
+            </div>
+            <div className="text-right text-sm text-gray-500">
+              <p>使用 ¥{leisureExpense.toLocaleString()}</p>
+              <p className="text-xs text-gray-400">合計 ¥{leisureTotal.toLocaleString()}</p>
+            </div>
+          </div>
+
+          <ProgressBar value={leisureExpense} max={leisureTotal} color="bg-amber-400" />
+
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            <div className="bg-amber-50 rounded-xl p-3">
+              <p className="text-xs text-amber-600 font-medium">今月分</p>
+              <p className="text-base font-bold text-amber-700 mt-0.5">¥{leisureBudgetThisMonth.toLocaleString()}</p>
+            </div>
+            <div className="bg-blue-50 rounded-xl p-3">
+              <p className="text-xs text-blue-600 font-medium">繰り越し</p>
+              <p className="text-base font-bold text-blue-700 mt-0.5">¥{carryoverBalance.toLocaleString()}</p>
+            </div>
+          </div>
+
+          {leisureTop5.length > 0 && (
+            <div className="pt-1 space-y-2 border-t border-gray-50">
+              <p className="text-xs text-gray-400 font-medium pt-1">カテゴリ別 TOP5</p>
+              {leisureTop5.map((item, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <span className="text-xs text-gray-400 w-4">{i + 1}</span>
+                  <span className="text-sm text-gray-700 flex-1">{item.name}</span>
+                  <span className="text-sm font-semibold text-gray-800">¥{item.amount.toLocaleString()}</span>
                 </div>
-              );
-            })}
+              ))}
+            </div>
+          )}
         </div>
-      )}
 
-      {/* 今月の支出合計 */}
-      <div className="bg-white rounded-xl shadow-sm p-4 space-y-1">
-        <h2 className="text-sm font-medium text-gray-500">今月の支出合計</h2>
-        <p className="text-3xl font-bold">¥{totalExpense.toLocaleString()}</p>
-        {settings && (
-          <p className="text-sm text-gray-500">
-            収入 ¥{income.toLocaleString()} → 余剰 ¥{(income - totalExpense).toLocaleString()}
-          </p>
+        {/* 生活費 */}
+        {normalCategories.length > 0 && (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">生活費</p>
+
+            <div className="flex items-end justify-between">
+              <div>
+                <p className="text-3xl font-bold text-gray-900">¥{totalFixedExpense.toLocaleString()}</p>
+                <p className="text-xs text-gray-400 mt-0.5">使用額</p>
+              </div>
+              <div className="text-right text-sm text-gray-500">
+                <p className={totalFixedExpense > totalFixedBudget ? "text-red-500 font-semibold" : ""}>
+                  予算 ¥{totalFixedBudget.toLocaleString()}
+                </p>
+              </div>
+            </div>
+
+            <ProgressBar value={totalFixedExpense} max={totalFixedBudget || totalFixedExpense} color="bg-blue-500" />
+
+            <div className="space-y-2 pt-1">
+              {normalCategories
+                .filter((c) => budgetMap[c.id] || fixedExpenseByCategory[c.id])
+                .map((c) => {
+                  const budget = budgetMap[c.id] ?? 0;
+                  const used = fixedExpenseByCategory[c.id] ?? 0;
+                  const over = budget > 0 && used > budget;
+                  return (
+                    <div key={c.id} className="space-y-1">
+                      <div className="flex justify-between text-sm">
+                        <span className={`font-medium ${over ? "text-red-600" : "text-gray-700"}`}>{c.name}</span>
+                        <span className={over ? "text-red-500 font-semibold" : "text-gray-500"}>
+                          ¥{used.toLocaleString()}
+                          {budget > 0 && ` / ¥${budget.toLocaleString()}`}
+                          {over && " ⚠"}
+                        </span>
+                      </div>
+                      {budget > 0 && <ProgressBar value={used} max={budget} color="bg-blue-400" />}
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
         )}
-      </div>
 
-      {/* 貯金残高 */}
-      <div className="bg-white rounded-xl shadow-sm p-4 space-y-3">
-        <h2 className="text-sm font-medium text-gray-500">貯金残高</h2>
-        <div className="flex gap-4">
-          <div className="flex-1 bg-blue-50 rounded-xl p-3">
-            <p className="text-xs text-blue-500 font-medium">基本枠</p>
-            <p className="text-xl font-bold text-blue-700 mt-1">¥{basicBalance.toLocaleString()}</p>
+        {/* 貯金残高 */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">貯金残高</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-blue-50 rounded-xl p-3">
+              <p className="text-xs text-blue-500 font-medium">基本枠</p>
+              <p className="text-xl font-bold text-blue-700 mt-1">¥{basicBalance.toLocaleString()}</p>
+            </div>
+            <div className="bg-emerald-50 rounded-xl p-3">
+              <p className="text-xs text-emerald-500 font-medium">特別枠</p>
+              <p className="text-xl font-bold text-emerald-700 mt-1">¥{specialBalance.toLocaleString()}</p>
+              <p className="text-xs text-emerald-400 mt-0.5">繰越 ¥{carryoverBalance.toLocaleString()}</p>
+            </div>
           </div>
-          <div className="flex-1 bg-green-50 rounded-xl p-3">
-            <p className="text-xs text-green-500 font-medium">特別枠</p>
-            <p className="text-xl font-bold text-green-700 mt-1">¥{specialBalance.toLocaleString()}</p>
-            <p className="text-xs text-green-400 mt-0.5">繰り越し ¥{carryoverBalance.toLocaleString()}</p>
+          <div className="flex justify-between items-center pt-1 border-t border-gray-50">
+            <p className="text-sm text-gray-500">総貯金額</p>
+            <p className="text-lg font-bold text-gray-800">¥{(basicBalance + specialBalance).toLocaleString()}</p>
           </div>
         </div>
-        <p className="text-sm text-gray-500 text-right">合計 ¥{(basicBalance + specialBalance).toLocaleString()}</p>
+
       </div>
     </div>
   );
