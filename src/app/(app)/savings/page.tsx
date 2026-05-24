@@ -8,8 +8,7 @@ export default async function SavingsPage() {
   const { data: history } = await supabase
     .from("savings_history")
     .select("*")
-    .order("year_month", { ascending: true })
-    .limit(12);
+    .order("year_month", { ascending: true });
 
   const latest = history?.at(-1);
   const basicBalance = latest?.basic_balance ?? 0;
