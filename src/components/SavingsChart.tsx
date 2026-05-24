@@ -22,47 +22,39 @@ type ChartPoint = {
   合計: number;
 };
 
+function dedupeByMonth(data: SavingsHistory[]): SavingsHistory[] {
+  const map = new Map<string, SavingsHistory>();
+  for (const d of data) map.set(d.year_month, d);
+  return Array.from(map.values()).sort((a, b) => a.year_month.localeCompare(b.year_month));
+}
+
+function toPoint(d: SavingsHistory, label: string): ChartPoint {
+  return { label, 基本枠: d.basic_balance, 特別枠: d.special_balance, 合計: d.basic_balance + d.special_balance };
+}
+
 function buildMonthly(data: SavingsHistory[]): ChartPoint[] {
-  return data.map((d) => {
+  return dedupeByMonth(data).map((d) => {
     const [y, m] = d.year_month.split("-");
-    const yearShort = y!.slice(2);
-    return {
-      label: `${yearShort}/${m}`,
-      基本枠: d.basic_balance,
-      特別枠: d.special_balance,
-      合計: d.basic_balance + d.special_balance,
-    };
+    return toPoint(d, `${y!.slice(2)}/${m}`);
   });
 }
 
 function buildHalfYear(data: SavingsHistory[]): ChartPoint[] {
   const map = new Map<string, SavingsHistory>();
-  for (const d of data) {
+  for (const d of dedupeByMonth(data)) {
     const [y, m] = d.year_month.split("-");
     const half = Number(m) <= 6 ? "上" : "下";
-    const key = `${y}${half}`;
-    map.set(key, d);
+    map.set(`${y}${half}`, d);
   }
-  return Array.from(map.entries()).map(([key, d]) => ({
-    label: key,
-    基本枠: d.basic_balance,
-    特別枠: d.special_balance,
-    合計: d.basic_balance + d.special_balance,
-  }));
+  return Array.from(map.entries()).map(([label, d]) => toPoint(d, label));
 }
 
 function buildYearly(data: SavingsHistory[]): ChartPoint[] {
   const map = new Map<string, SavingsHistory>();
-  for (const d of data) {
-    const y = d.year_month.slice(0, 4);
-    map.set(y, d);
+  for (const d of dedupeByMonth(data)) {
+    map.set(d.year_month.slice(0, 4), d);
   }
-  return Array.from(map.entries()).map(([y, d]) => ({
-    label: `${y}年`,
-    基本枠: d.basic_balance,
-    特別枠: d.special_balance,
-    合計: d.basic_balance + d.special_balance,
-  }));
+  return Array.from(map.entries()).map(([y, d]) => toPoint(d, `${y}年`));
 }
 
 const PERIOD_LABELS: { key: Period; label: string }[] = [
@@ -75,24 +67,19 @@ export default function SavingsChart({ data }: { data: SavingsHistory[] }) {
   const [period, setPeriod] = useState<Period>("monthly");
 
   const chartData =
-    period === "monthly"
-      ? buildMonthly(data)
-      : period === "halfyear"
-      ? buildHalfYear(data)
-      : buildYearly(data);
+    period === "monthly" ? buildMonthly(data) :
+    period === "halfyear" ? buildHalfYear(data) :
+    buildYearly(data);
 
   return (
     <div className="space-y-4">
-      {/* 期間切り替え */}
       <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
         {PERIOD_LABELS.map(({ key, label }) => (
           <button
             key={key}
             onClick={() => setPeriod(key)}
             className={`flex-1 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-              period === key
-                ? "bg-white text-gray-800 shadow-sm"
-                : "text-gray-500"
+              period === key ? "bg-white text-gray-800 shadow-sm" : "text-gray-500"
             }`}
           >
             {label}
@@ -100,24 +87,28 @@ export default function SavingsChart({ data }: { data: SavingsHistory[] }) {
         ))}
       </div>
 
-      <ResponsiveContainer width="100%" height={220}>
-        <LineChart data={chartData} margin={{ left: 8, right: 8 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-          <XAxis dataKey="label" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
-          <YAxis
-            tick={{ fontSize: 10 }}
-            tickFormatter={(v) => `${(v / 10000).toFixed(0)}万`}
-            width={36}
-          />
-          <Tooltip
-            formatter={(value) => `¥${Number(value).toLocaleString()}`}
-          />
-          <Legend wrapperStyle={{ fontSize: 11 }} />
-          <Line type="monotone" dataKey="基本枠" stroke="#3b82f6" strokeWidth={2} dot={chartData.length <= 24} />
-          <Line type="monotone" dataKey="特別枠" stroke="#22c55e" strokeWidth={2} dot={chartData.length <= 24} />
-          <Line type="monotone" dataKey="合計" stroke="#8b5cf6" strokeWidth={2} dot={chartData.length <= 24} />
-        </LineChart>
-      </ResponsiveContainer>
+      {chartData.length <= 1 ? (
+        <p className="text-sm text-gray-400 py-8 text-center">
+          データが2件以上蓄積されるとグラフが表示されます
+        </p>
+      ) : (
+        <ResponsiveContainer width="100%" height={220}>
+          <LineChart data={chartData} margin={{ left: 8, right: 8 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+            <XAxis dataKey="label" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+            <YAxis
+              tick={{ fontSize: 10 }}
+              tickFormatter={(v) => `${(v / 10000).toFixed(0)}万`}
+              width={36}
+            />
+            <Tooltip formatter={(value) => `¥${Number(value).toLocaleString()}`} />
+            <Legend wrapperStyle={{ fontSize: 11 }} />
+            <Line type="monotone" dataKey="基本枠" stroke="#3b82f6" strokeWidth={2} dot={chartData.length <= 24} />
+            <Line type="monotone" dataKey="特別枠" stroke="#22c55e" strokeWidth={2} dot={chartData.length <= 24} />
+            <Line type="monotone" dataKey="合計" stroke="#8b5cf6" strokeWidth={2} dot={chartData.length <= 24} />
+          </LineChart>
+        </ResponsiveContainer>
+      )}
     </div>
   );
 }

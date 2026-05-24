@@ -132,19 +132,19 @@ export default async function DashboardPage() {
         {/* 収支サマリー */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">今月の収支</p>
-          <div className="grid grid-cols-3 divide-x divide-gray-100">
-            <div className="pr-4">
+          <div className="grid grid-cols-3 text-center divide-x divide-gray-100">
+            <div className="px-2">
               <p className="text-xs text-gray-400 mb-1">収入</p>
-              <p className="text-base font-bold text-gray-800">¥{income.toLocaleString()}</p>
+              <p className="text-base font-bold text-gray-800 whitespace-nowrap">¥{income.toLocaleString()}</p>
             </div>
-            <div className="px-4">
+            <div className="px-2">
               <p className="text-xs text-gray-400 mb-1">支出</p>
-              <p className="text-base font-bold text-gray-800">¥{totalExpense.toLocaleString()}</p>
+              <p className="text-base font-bold text-gray-800 whitespace-nowrap">¥{totalExpense.toLocaleString()}</p>
             </div>
-            <div className="pl-4">
+            <div className="px-2">
               <p className="text-xs text-gray-400 mb-1">収支</p>
-              <p className={`text-base font-bold ${surplus >= 0 ? "text-blue-600" : "text-red-500"}`}>
-                {surplus >= 0 ? "+" : ""}¥{surplus.toLocaleString()}
+              <p className={`text-base font-bold whitespace-nowrap ${surplus >= 0 ? "text-blue-600" : "text-red-500"}`}>
+                {surplus >= 0 ? `+¥${surplus.toLocaleString()}` : `-¥${Math.abs(surplus).toLocaleString()}`}
               </p>
             </div>
           </div>
@@ -160,15 +160,15 @@ export default async function DashboardPage() {
             )}
           </div>
 
-          {/* 残高（メイン） */}
-          <div>
-            <p className="text-xs text-gray-400 mb-0.5">残り</p>
+          {/* 残高（メイン）: 残りラベルと金額を横並び */}
+          <div className="flex items-baseline justify-between">
+            <p className="text-xs text-gray-400">残り</p>
             <p className={`text-3xl font-bold ${leisureRemaining < 0 ? "text-red-500" : "text-gray-900"}`}>
               ¥{leisureRemaining.toLocaleString()}
             </p>
           </div>
 
-          {/* 2トーンのプログレスバー（使用=amber、残り=amber-100） */}
+          {/* 2トーンのプログレスバー */}
           <div className="w-full bg-amber-100 rounded-full h-3 overflow-hidden">
             <div
               className={`h-3 rounded-full transition-all ${leisureExpense > leisureTotal ? "bg-red-400" : "bg-amber-400"}`}
@@ -176,9 +176,9 @@ export default async function DashboardPage() {
             />
           </div>
 
-          {/* 使用 / 合計 */}
+          {/* 支出 / 合計 */}
           <div className="flex justify-between text-sm text-gray-500">
-            <span>使用 <span className="font-semibold text-gray-700">¥{leisureExpense.toLocaleString()}</span></span>
+            <span>支出 <span className="font-semibold text-gray-700">¥{leisureExpense.toLocaleString()}</span></span>
             <span>合計 <span className="font-medium">¥{leisureTotal.toLocaleString()}</span></span>
           </div>
 
