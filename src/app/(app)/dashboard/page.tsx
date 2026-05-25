@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { createServerClient } from "@/lib/supabase/client";
+import ExpenseModal from "@/components/ExpenseModal";
 
 function getCurrentYearMonth() {
   const now = new Date();
@@ -36,23 +37,35 @@ export default async function DashboardPage() {
   const prevMonth = getPreviousYearMonth();
   const supabase = createServerClient();
 
-  const [settingsRes, expensesRes, savingsRes, categoriesRes, budgetsRes, prevSettingsRes, prevClosingRes] = await Promise.all([
+  const [settingsRes, expensesRes, savingsRes, categoriesRes, budgetsRes, prevSettingsRes, prevClosingRes, allExpenseCatsRes] = await Promise.all([
     supabase.from("monthly_settings").select("*").eq("year_month", yearMonth).maybeSingle(),
     supabase.from("expenses").select("amount, category:categories(id, name, is_leisure)")
       .gte("date", `${yearMonth}-01`).lte("date", `${yearMonth}-31`),
     supabase.from("savings_history").select("basic_balance, special_balance")
       .order("year_month", { ascending: false }).limit(1).maybeSingle(),
-    supabase.from("categories").select("*").eq("is_leisure", false),
+    supabase.from("categories").select("*").order("is_leisure", { ascending: true }).order("name"),
     supabase.from("category_budgets").select("*"),
     supabase.from("monthly_settings").select("id").eq("year_month", prevMonth).maybeSingle(),
     supabase.from("savings_history").select("id").eq("year_month", prevMonth).maybeSingle(),
+    supabase.from("expenses").select("category_id"),
   ]);
 
   const settings = settingsRes.data;
   const prevMonthUnclosed = !!prevSettingsRes.data && !prevClosingRes.data;
   const expenses = expensesRes.data ?? [];
   const budgets = budgetsRes.data ?? [];
-  const normalCategories = categoriesRes.data ?? [];
+  const allCategories = categoriesRes.data ?? [];
+  const normalCategories = allCategories.filter((c) => !c.is_leisure);
+
+  // 全期間の使用頻度でカテゴリをソート
+  const usageCount: Record<string, number> = {};
+  for (const e of allExpenseCatsRes.data ?? []) {
+    if (e.category_id) usageCount[e.category_id] = (usageCount[e.category_id] ?? 0) + 1;
+  }
+  const sortedCategories = [...allCategories].sort((a, b) => {
+    const diff = (usageCount[b.id] ?? 0) - (usageCount[a.id] ?? 0);
+    return diff !== 0 ? diff : a.name.localeCompare(b.name, "ja");
+  });
 
   type Cat = { id: string; name: string; is_leisure: boolean };
 
@@ -104,12 +117,7 @@ export default async function DashboardPage() {
       <div className="bg-white border-b border-gray-100 px-4 pt-6 pb-4">
         <div className="flex items-center justify-between">
           <h1 className="text-lg font-bold text-gray-800">{monthLabel}</h1>
-          <Link
-            href="/expenses/new"
-            className="bg-blue-600 text-white text-sm font-semibold px-4 py-2 rounded-full shadow-sm"
-          >
-            ＋ 支出追加
-          </Link>
+          <ExpenseModal categories={sortedCategories} />
         </div>
 
         {!settings && (

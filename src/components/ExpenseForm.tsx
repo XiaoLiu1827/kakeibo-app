@@ -8,9 +8,10 @@ import type { Category, Expense } from "@/lib/supabase/types";
 type Props = {
   categories: Category[];
   expense?: Expense;
+  onSuccess?: () => void;
 };
 
-export default function ExpenseForm({ categories, expense }: Props) {
+export default function ExpenseForm({ categories, expense, onSuccess }: Props) {
   const router = useRouter();
   const isEdit = !!expense;
 
@@ -44,12 +45,17 @@ export default function ExpenseForm({ categories, expense }: Props) {
 
     if (isEdit) {
       await supabase.from("expenses").update(payload).eq("id", expense.id);
+      router.push("/expenses");
+      router.refresh();
     } else {
       await supabase.from("expenses").insert(payload);
+      if (onSuccess) {
+        onSuccess();
+      } else {
+        router.push("/expenses");
+        router.refresh();
+      }
     }
-
-    router.push("/expenses");
-    router.refresh();
   }
 
   async function handleDelete() {
