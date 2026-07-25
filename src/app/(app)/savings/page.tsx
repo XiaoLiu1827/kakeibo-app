@@ -10,9 +10,8 @@ export default async function SavingsPage() {
     .select("*")
     .order("year_month", { ascending: true });
 
-  const latest = history?.at(-1);
-  const basicBalance = latest?.basic_balance ?? 0;
-  const specialBalance = latest?.special_balance ?? 0;
+  const basicBalance = (history ?? []).reduce((s, r) => s + r.basic_delta, 0);
+  const specialBalance = (history ?? []).reduce((s, r) => s + r.special_delta, 0);
 
   return (
     <div className="p-4 space-y-4">

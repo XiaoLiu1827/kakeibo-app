@@ -3,11 +3,12 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { getPreviousYearMonth, getNextMonthStart } from "@/lib/dateUtils";
 
-function getPreviousYearMonth(): string {
-  const now = new Date();
-  const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  return `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, "0")}`;
+function getNextYearMonth(ym: string): string {
+  const [y, m] = ym.split("-").map(Number);
+  const next = new Date(y!, m!, 1); // m is 1-indexed, so this is the 1st of the next month
+  return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}`;
 }
 
 function formatMonthLabel(ym: string) {
@@ -32,31 +33,31 @@ export default function MonthClosing() {
   const [loadingData, setLoadingData] = useState(true);
   const [preview, setPreview] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [forceRerun, setForceRerun] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoadingData(true);
     const supabase = createClient();
 
-    const [settingsRes, expensesRes, closingRes, prevSavingsRes] = await Promise.all([
+    const [settingsRes, expensesRes, closingRes, historyRes] = await Promise.all([
       supabase.from("monthly_settings").select("income, savings_target").eq("year_month", prevMonth).maybeSingle(),
-      supabase.from("expenses").select("amount").gte("date", `${prevMonth}-01`).lte("date", `${prevMonth}-31`),
+      supabase.from("expenses").select("amount").gte("date", `${prevMonth}-01`).lt("date", getNextMonthStart(prevMonth)),
       supabase.from("savings_history").select("id").eq("year_month", prevMonth).maybeSingle(),
       supabase.from("savings_history")
-        .select("basic_balance, special_balance")
-        .lt("year_month", prevMonth)
-        .order("year_month", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
+        .select("basic_delta, special_delta")
+        .neq("year_month", prevMonth), // 今月の締めエントリ自身だけ除外（再計算時の二重計上防止）
     ]);
 
     const totalExpense = (expensesRes.data ?? []).reduce((s, e) => s + e.amount, 0);
+    const latestBasicBalance = (historyRes.data ?? []).reduce((s, r) => s + r.basic_delta, 0);
+    const latestSpecialBalance = (historyRes.data ?? []).reduce((s, r) => s + r.special_delta, 0);
 
     setData({
       income: settingsRes.data?.income ?? 0,
       savingsTarget: settingsRes.data?.savings_target ?? 50000,
       totalExpense,
-      latestBasicBalance: prevSavingsRes.data?.basic_balance ?? 0,
-      latestSpecialBalance: prevSavingsRes.data?.special_balance ?? 0,
+      latestBasicBalance,
+      latestSpecialBalance,
       alreadyClosed: !!closingRes.data,
       hasSettings: !!settingsRes.data,
     });
@@ -106,10 +107,16 @@ export default function MonthClosing() {
     );
   }
 
-  if (data.alreadyClosed) {
+  if (data.alreadyClosed && !forceRerun) {
     return (
-      <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-sm text-green-700">
-        ✓ {formatMonthLabel(prevMonth)}の締め処理は完了しています
+      <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-sm text-green-700 flex items-center justify-between">
+        <span>✓ {formatMonthLabel(prevMonth)}の締め処理は完了しています</span>
+        <button
+          onClick={() => { setForceRerun(true); setPreview(true); }}
+          className="text-xs text-gray-400 underline ml-3 shrink-0"
+        >
+          再計算
+        </button>
       </div>
     );
   }
