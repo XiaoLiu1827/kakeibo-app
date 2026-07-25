@@ -4,26 +4,28 @@ import SettingsForm from "@/components/SettingsForm";
 import CategoryManager from "@/components/CategoryManager";
 import CategoryBudgetManager from "@/components/CategoryBudgetManager";
 import MonthClosing from "@/components/MonthClosing";
-
-function getCurrentYearMonth() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-}
+import RecurringExpenseManager from "@/components/RecurringExpenseManager";
+import { getCurrentYearMonth, getNextMonthStart } from "@/lib/dateUtils";
 
 export default async function SettingsPage() {
   const yearMonth = getCurrentYearMonth();
   const supabase = createServerClient();
 
-  const [settingsRes, prevSettingsRes, categoriesRes, budgetsRes] =
+  const [settingsRes, prevSettingsRes, categoriesRes, budgetsRes, incomesRes, recurringRes] =
     await Promise.all([
       supabase.from("monthly_settings").select("*").eq("year_month", yearMonth).maybeSingle(),
       supabase.from("monthly_settings").select("year_month, savings_target").order("year_month", { ascending: false }).limit(2),
       supabase.from("categories").select("*").order("is_leisure").order("name"),
       supabase.from("category_budgets").select("*"),
+      supabase.from("incomes").select("amount")
+        .gte("date", `${yearMonth}-01`)
+        .lt("date", getNextMonthStart(yearMonth)),
+      supabase.from("recurring_expenses").select("*").order("created_at"),
     ]);
 
   const prevSettings = prevSettingsRes.data?.find((s) => s.year_month !== yearMonth);
   const totalFixedBudget = (budgetsRes.data ?? []).reduce((sum, b) => sum + b.budget, 0);
+  const totalIncome = (incomesRes.data ?? []).reduce((sum, i) => sum + i.amount, 0);
 
   return (
     <div className="p-4 space-y-6">
@@ -36,6 +38,7 @@ export default async function SettingsPage() {
           settings={settingsRes.data}
           prevSavingsTarget={prevSettings?.savings_target}
           totalFixedBudget={totalFixedBudget}
+          totalIncome={totalIncome}
         />
       </div>
 
@@ -49,6 +52,14 @@ export default async function SettingsPage() {
         <CategoryBudgetManager
           categories={categoriesRes.data ?? []}
           budgets={budgetsRes.data ?? []}
+        />
+      </div>
+
+      <div className="bg-white rounded-xl shadow-sm p-4">
+        <h2 className="text-sm font-medium text-gray-500 mb-4">固定支出テンプレート</h2>
+        <RecurringExpenseManager
+          categories={categoriesRes.data ?? []}
+          templates={recurringRes.data ?? []}
         />
       </div>
 

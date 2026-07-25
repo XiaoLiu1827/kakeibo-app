@@ -1,40 +1,68 @@
-import Link from "next/link";
 export const dynamic = "force-dynamic";
+import Link from "next/link";
 import { createServerClient } from "@/lib/supabase/client";
+import MonthPicker from "@/components/MonthPicker";
+import { getCurrentYearMonth, getNextMonthStart } from "@/lib/dateUtils";
 
-function getCurrentYearMonth() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-}
+type Props = { searchParams: Promise<{ month?: string; filter?: string }> };
 
-export default async function ExpensesPage() {
-  const yearMonth = getCurrentYearMonth();
+export default async function ExpensesPage(props: Props) {
+  const { month, filter } = await props.searchParams;
+  const yearMonth = month ?? getCurrentYearMonth();
+
   const supabase = createServerClient();
 
-  const { data: expenses } = await supabase
+  let query = supabase
     .from("expenses")
     .select("*, category:categories(name, is_leisure)")
     .gte("date", `${yearMonth}-01`)
-    .lte("date", `${yearMonth}-31`)
+    .lt("date", getNextMonthStart(yearMonth))
     .order("date", { ascending: false });
 
-  const grouped = (expenses ?? []).reduce<Record<string, typeof expenses>>(
+  if (filter === "normal") {
+    query = query.eq("categories.is_leisure", false);
+  } else if (filter === "leisure") {
+    query = query.eq("categories.is_leisure", true);
+  }
+
+  const { data: expenses } = await query;
+
+  // フィルターがある場合はカテゴリが一致するものだけ残す（joinフィルターがnullになるため）
+  const filtered = (expenses ?? []).filter((e) => {
+    const cat = e.category as unknown as { is_leisure: boolean } | null;
+    if (filter === "normal") return cat !== null && !cat.is_leisure;
+    if (filter === "leisure") return cat !== null && cat.is_leisure;
+    return true;
+  });
+
+  const grouped = filtered.reduce<Record<string, typeof filtered>>(
     (acc, expense) => {
-      const date = expense.date;
-      if (!acc[date]) acc[date] = [];
-      acc[date]!.push(expense);
+      if (!acc[expense.date]) acc[expense.date] = [];
+      acc[expense.date]!.push(expense);
       return acc;
     },
     {}
   );
 
-  const now = new Date();
-  const monthLabel = `${now.getFullYear()}年${now.getMonth() + 1}月`;
+  const total = filtered.reduce((s, e) => s + e.amount, 0);
+
+  function filterHref(f?: string) {
+    const params = new URLSearchParams();
+    params.set("month", yearMonth);
+    if (f) params.set("filter", f);
+    return `/expenses?${params.toString()}`;
+  }
+
+  const filterOptions = [
+    { key: undefined, label: "すべて" },
+    { key: "normal", label: "生活費" },
+    { key: "leisure", label: "余暇" },
+  ] as const;
 
   return (
     <div className="p-4 space-y-4">
       <div className="flex items-center justify-between pt-2">
-        <h1 className="text-xl font-bold">{monthLabel}の支出</h1>
+        <MonthPicker current={yearMonth} basePath="/expenses" />
         <Link
           href="/expenses/new"
           className="bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-full"
@@ -43,16 +71,43 @@ export default async function ExpensesPage() {
         </Link>
       </div>
 
+      {/* フィルターチップ */}
+      <div className="flex gap-2">
+        {filterOptions.map(({ key, label }) => {
+          const active = filter === key;
+          return (
+            <Link
+              key={label}
+              href={filterHref(key)}
+              className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+                active
+                  ? "bg-blue-600 text-white border-blue-600"
+                  : "bg-white text-gray-600 border-gray-200"
+              }`}
+            >
+              {label}
+            </Link>
+          );
+        })}
+      </div>
+
+      {filtered.length > 0 && (
+        <div className="bg-white rounded-xl px-4 py-3 flex justify-between items-center shadow-sm border border-gray-100">
+          <span className="text-sm text-gray-500">合計支出</span>
+          <span className="text-lg font-bold text-gray-800">¥{total.toLocaleString()}</span>
+        </div>
+      )}
+
       {Object.keys(grouped).length === 0 ? (
         <div className="text-center py-16 text-gray-400">
           <p className="text-4xl mb-3">📭</p>
-          <p>まだ支出がありません</p>
+          <p>支出がありません</p>
         </div>
       ) : (
         Object.entries(grouped).map(([date, items]) => (
           <div key={date}>
             <p className="text-xs text-gray-400 font-medium px-1 mb-2">
-              {new Date(date).toLocaleDateString("ja-JP", {
+              {new Date(date + "T00:00:00").toLocaleDateString("ja-JP", {
                 month: "long",
                 day: "numeric",
                 weekday: "short",
@@ -67,22 +122,20 @@ export default async function ExpensesPage() {
                 >
                   <div
                     className={`w-2 h-2 rounded-full shrink-0 ${
-                      (expense.category as unknown as { is_leisure: boolean } | null)
-                        ?.is_leisure
+                      (expense.category as unknown as { is_leisure: boolean } | null)?.is_leisure
                         ? "bg-orange-400"
                         : "bg-gray-300"
                     }`}
                   />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">
-                      {(expense.category as unknown as { name: string } | null)?.name ??
-                        "未分類"}
+                    <p className="text-sm font-medium text-gray-800 truncate">
+                      {(expense.category as unknown as { name: string } | null)?.name ?? "未分類"}
                     </p>
                     {expense.memo && (
                       <p className="text-xs text-gray-400 truncate">{expense.memo}</p>
                     )}
                   </div>
-                  <p className="text-sm font-bold shrink-0">
+                  <p className="text-sm font-bold text-gray-800 shrink-0">
                     ¥{expense.amount.toLocaleString()}
                   </p>
                 </Link>

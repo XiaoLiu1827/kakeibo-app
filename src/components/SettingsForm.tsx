@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import type { MonthlySettings } from "@/lib/supabase/types";
 
@@ -10,17 +11,17 @@ type Props = {
   settings: MonthlySettings | null;
   prevSavingsTarget?: number;
   totalFixedBudget: number;
+  totalIncome: number;
 };
 
-export default function SettingsForm({ yearMonth, settings, prevSavingsTarget, totalFixedBudget }: Props) {
+export default function SettingsForm({ yearMonth, settings, prevSavingsTarget, totalFixedBudget, totalIncome }: Props) {
   const router = useRouter();
   const defaultTarget = settings?.savings_target ?? prevSavingsTarget ?? 50000;
-  const [income, setIncome] = useState(String(settings?.income ?? ""));
   const [savingsTarget, setSavingsTarget] = useState(String(defaultTarget));
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  const leisureBudget = Number(income || 0) - totalFixedBudget - Number(savingsTarget || 0);
+  const leisureBudget = totalIncome - totalFixedBudget - Number(savingsTarget || 0);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -30,7 +31,7 @@ export default function SettingsForm({ yearMonth, settings, prevSavingsTarget, t
     const supabase = createClient();
     const payload = {
       year_month: yearMonth,
-      income: Number(income),
+      income: totalIncome,
       savings_target: Number(savingsTarget),
       leisure_budget: 0,
     };
@@ -48,21 +49,17 @@ export default function SettingsForm({ yearMonth, settings, prevSavingsTarget, t
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          今月の手取り収入
-        </label>
-        <div className="relative">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">¥</span>
-          <input
-            type="number"
-            inputMode="numeric"
-            value={income}
-            onChange={(e) => setIncome(e.target.value)}
-            placeholder="例: 280000"
-            className="w-full pl-8 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+      <div className="bg-gray-50 rounded-xl p-3 flex items-center justify-between">
+        <div>
+          <p className="text-xs text-gray-500 mb-0.5">今月の収入合計</p>
+          <p className="text-xl font-bold text-emerald-700">¥{totalIncome.toLocaleString()}</p>
         </div>
+        <Link
+          href="/incomes"
+          className="text-sm text-emerald-600 font-medium border border-emerald-200 px-3 py-1.5 rounded-full"
+        >
+          収入を記録 →
+        </Link>
       </div>
 
       <div>
@@ -83,7 +80,7 @@ export default function SettingsForm({ yearMonth, settings, prevSavingsTarget, t
         <p className="text-xs text-gray-400 mt-1">前月の値を引き継ぎます</p>
       </div>
 
-      {Number(income) > 0 && (
+      {totalIncome > 0 && (
         <div className={`rounded-xl p-4 ${leisureBudget >= 0 ? "bg-orange-50" : "bg-red-50"}`}>
           <p className="text-xs font-medium text-gray-500 mb-1">今月の余暇予算（自動計算）</p>
           <p className={`text-2xl font-bold ${leisureBudget >= 0 ? "text-orange-600" : "text-red-500"}`}>
@@ -91,8 +88,8 @@ export default function SettingsForm({ yearMonth, settings, prevSavingsTarget, t
           </p>
           <div className="text-xs text-gray-400 mt-2 space-y-0.5">
             <div className="flex justify-between">
-              <span>手取り収入</span>
-              <span>¥{Number(income).toLocaleString()}</span>
+              <span>収入合計</span>
+              <span>¥{totalIncome.toLocaleString()}</span>
             </div>
             <div className="flex justify-between">
               <span>固定費予算合計</span>

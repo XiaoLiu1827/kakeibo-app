@@ -1,3 +1,29 @@
+export type RecurringExpense = {
+  id: string
+  category_id: string | null
+  amount: number
+  memo: string | null
+  created_at: string
+  category?: Category
+}
+
+export type IncomeCategory = {
+  id: string
+  name: string
+  is_default: boolean
+  created_at: string
+}
+
+export type Income = {
+  id: string
+  amount: number
+  category_id: string | null
+  memo: string | null
+  date: string
+  created_at: string
+  income_category?: IncomeCategory
+}
+
 export type Category = {
   id: string
   name: string

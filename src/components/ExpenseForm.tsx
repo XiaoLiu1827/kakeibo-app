@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { Category, Expense } from "@/lib/supabase/types";
+import CalcInput from "./CalcInput";
+import { getLocalDateString } from "@/lib/dateUtils";
 
 type Props = {
   categories: Category[];
@@ -15,10 +17,10 @@ export default function ExpenseForm({ categories, expense, onSuccess }: Props) {
   const router = useRouter();
   const isEdit = !!expense;
 
-  const [amount, setAmount] = useState(String(expense?.amount ?? ""));
+  const [amount, setAmount] = useState<number>(expense?.amount ?? 0);
   const [categoryId, setCategoryId] = useState(expense?.category_id ?? categories[0]?.id ?? "");
   const [memo, setMemo] = useState(expense?.memo ?? "");
-  const [date, setDate] = useState(expense?.date ?? new Date().toISOString().split("T")[0]);
+  const [date, setDate] = useState(expense?.date ?? getLocalDateString());
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
@@ -28,7 +30,7 @@ export default function ExpenseForm({ categories, expense, onSuccess }: Props) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!amount || Number(amount) <= 0) {
+    if (!amount || amount <= 0) {
       setError("金額を入力してください");
       return;
     }
@@ -37,7 +39,7 @@ export default function ExpenseForm({ categories, expense, onSuccess }: Props) {
 
     const supabase = createClient();
     const payload = {
-      amount: Number(amount),
+      amount,
       category_id: categoryId || null,
       memo: memo || null,
       date,
@@ -71,20 +73,10 @@ export default function ExpenseForm({ categories, expense, onSuccess }: Props) {
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
           金額 <span className="text-red-500">*</span>
         </label>
-        <div className="relative">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-medium">¥</span>
-          <input
-            type="number"
-            inputMode="numeric"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            placeholder="0"
-            className="w-full pl-8 pr-4 py-3 text-xl font-bold border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
+        <CalcInput initialValue={expense?.amount} onChange={setAmount} />
       </div>
 
       <div>
